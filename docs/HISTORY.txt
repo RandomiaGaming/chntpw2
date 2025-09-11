@@ -248,7 +248,7 @@ order :)
 * v 0.98.6 021213
  - Added parsing of users F and SAMs F value, which stores account type bits
    and lockout information. Ability to reset it if locked.
- - As usual, see source (especially sam.h for details) on this.
+ - As usual, see source (especially libsam.h for details) on this.
 
 * v 0.98.5 021208
  - Added ability to enter RID (in hex) instead of username by

@@ -34,7 +34,7 @@
 #include <string.h>
 
 #include "ntreg.h"
-#include "sam.h"
+#include "libsam.h"
 
 
 const char sampasswd_version[] = "sampasswd version 0.2 140201, (c) Petter N Hagen";

@@ -430,7 +430,7 @@ Fields are:
 User RID (hex)
 User name
 Is user admin? (1 = yes, 0 = no) (member of group ID 0x220)
-Account flags, ACB (hex). See sam.h file.
+Account flags, ACB (hex). See libsam.h file.
 Password hash length. 14 = normal password. 0 or 4 = probably blank.
 
 The bulk reset (-r -a) will also output parsable result:

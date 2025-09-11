@@ -89,7 +89,7 @@
 #define MD4Final MD4_Final
 
 #include "ntreg.h"
-#include "sam.h"
+#include "libsam.h"
 
 const char chntpw_version[] = "chntpw version 1.00 140201, (c) Petter N Hagen";
 

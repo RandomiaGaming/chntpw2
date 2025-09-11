@@ -39,7 +39,7 @@
 #include <string.h>
 
 #include "ntreg.h"
-#include "sam.h"
+#include "libsam.h"
 
 
 const char samusrgrp_version[] = "samusrgrp version 0.2 140201, (c) Petter N Hagen";

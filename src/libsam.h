@@ -1,5 +1,5 @@
 /*
- * sam.h - known structures in the SAM hive of NT registry
+ * libsam.h - known structures in the SAM hive of NT registry
  * 
  *****
  *
