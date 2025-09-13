@@ -22,8 +22,8 @@
  */ 
 
 
-#ifndef _INCLUDE_NTREG_H
-#define _INCLUDE_NTREG_H 1
+#ifndef NTREG_H
+#define NTREG_H
 
 #define SZ_MAX     4096       /* Max unicode strlen before we truncate */
 
@@ -446,6 +446,4 @@ char *string_regw2prog(void *string, int len);
 void regedit_interactive(struct hive *hive[], int no_hives);
 void cat_dpi(struct hive *hdesc, int nkofs, char *path);
 
-
-#endif
-
+#endif // NTREG_H

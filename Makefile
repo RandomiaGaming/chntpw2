@@ -1,6 +1,6 @@
 # To build staticly with musl glibc uncomment the following lines.
-CC = ./musl/bin/gcc
-CFLAGS = -static -Wall -Wextra -Werror
+#CC = ./musl/bin/gcc
+#CFLAGS = -static -Wall -Wextra -Werror -Wpedantic
 
 # This tells make that the all, binaries, and clean targets not actual files on disk.
 .PHONY: all binaries clean
@@ -32,7 +32,7 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
 
 # These next few build targets build binaries from the .o files.
 $(BINDIR)/chntpw: $(OBJDIR)/chntpw.o $(OBJDIR)/ntreg.o $(OBJDIR)/edlib.o $(OBJDIR)/libsam.o | $(BINDIR)
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ -lssl -lcrypto
 
 $(BINDIR)/reged: $(OBJDIR)/reged.o $(OBJDIR)/ntreg.o $(OBJDIR)/edlib.o | $(BINDIR)
 	$(CC) $(CFLAGS) -o $@ $^

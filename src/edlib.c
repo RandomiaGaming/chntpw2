@@ -437,7 +437,7 @@ int parsecmd(char **s, struct cmds *cmd)
  * Actually the command should understand the type names too, but.. some later time
  */
 
-void nv_help(void)
+void nv_help()
 {
   int i;
 

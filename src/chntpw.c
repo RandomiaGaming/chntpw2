@@ -9,6 +9,8 @@
 #include <sys/types.h>
 #include <inttypes.h>
 
+#define DOCRYPTO
+
 /* Define DOCRYPTO in makefile to include cryptostuff to be able to change passwords to
  * a new one.
  * Changing passwords is seems not to be working reliably on XP and newer anyway.
@@ -20,12 +22,13 @@
 #include <openssl/md4.h>
 #endif
 
-#define uchar u_char
+#define uchar unsigned char
 #define MD4Init MD4_Init
 #define MD4Update MD4_Update
 #define MD4Final MD4_Final
 
 #include "ntreg.h"
+#include "edlib.h"
 #include "libsam.h"
 
 const char chntpw_version[] = "chntpw version 1.00 140201, (c) Petter N Hagen";
@@ -92,7 +95,7 @@ void str_to_key(unsigned char *str,unsigned char *key)
 	for (i=0;i<8;i++) {
 		key[i] = (key[i]<<1);
 	}
-	DES_set_odd_parity((des_cblock *)key);
+	DES_set_odd_parity((DES_cblock *)key);
 }
 
 /*
@@ -137,16 +140,12 @@ void sid_to_key2(uint32_t sid,unsigned char deskey[8])
 
 void E1(uchar *k, uchar *d, uchar *out)
 {
-  des_key_schedule ks;
-  des_cblock deskey;
+  DES_key_schedule ks;
+  DES_cblock deskey;
 
   str_to_key(k,(uchar *)deskey);
-#ifdef __FreeBSD__
-  des_set_key(&deskey,ks);
-#else /* __FreeBsd__ */
-  des_set_key((des_cblock *)deskey,ks);
-#endif /* __FreeBsd__ */
-  des_ecb_encrypt((des_cblock *)d,(des_cblock *)out, ks, DES_ENCRYPT);
+  DES_set_key((DES_cblock *)deskey, &ks);
+  DES_ecb_encrypt((DES_cblock *)d,(DES_cblock *)out, &ks, DES_ENCRYPT);
 }
 
 #endif   /* DOCRYPTO */
@@ -199,7 +198,7 @@ void promote_user(int rid)
 void interactive_remusrgrp(int rid)
 {
   char inp[20];
-  int grp;
+  unsigned int grp;
 
   printf("\n=== REMOVE USER FROM A GROUP\n");
 
@@ -275,13 +274,13 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
    unsigned short acb;
    struct user_V *v;
 
-#ifdef DOCRYPT
+#ifdef DOCRYPTO
    int dontchange = 0;
    int i;
    char md4[32],lanman[32];
    char newunipw[34], despw[20], newlanpw[16], newlandes[20];
-   des_key_schedule ks1, ks2;
-   des_cblock deskey1, deskey2;
+   DES_key_schedule ks1, ks2;
+   DES_cblock deskey1, deskey2;
    MD4_CTX context;
    unsigned char digest[16];
    uchar x1[] = {0x4B,0x47,0x53,0x21,0x40,0x23,0x24,0x25};
@@ -399,21 +398,21 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
 #ifdef DOCRYPTO
    /* Get the two decrpt keys. */
    sid_to_key1(rid,(unsigned char *)deskey1);
-   des_set_key((des_cblock *)deskey1,ks1);
+   DES_set_key((DES_cblock *)deskey1, &ks1);
    sid_to_key2(rid,(unsigned char *)deskey2);
-   des_set_key((des_cblock *)deskey2,ks2);
+   DES_set_key((DES_cblock *)deskey2, &ks2);
    
    /* Decrypt the NT md4 password hash as two 8 byte blocks. */
-   des_ecb_encrypt((des_cblock *)(vp+ntpw_offs ),
-		   (des_cblock *)md4, ks1, DES_DECRYPT);
-   des_ecb_encrypt((des_cblock *)(vp+ntpw_offs + 8),
-		   (des_cblock *)&md4[8], ks2, DES_DECRYPT);
+   DES_ecb_encrypt((DES_cblock *)(vp+ntpw_offs ),
+		   (DES_cblock *)md4, &ks1, DES_DECRYPT);
+   DES_ecb_encrypt((DES_cblock *)(vp+ntpw_offs + 8),
+		   (DES_cblock *)&md4[8], &ks2, DES_DECRYPT);
 
    /* Decrypt the lanman password hash as two 8 byte blocks. */
-   des_ecb_encrypt((des_cblock *)(vp+lmpw_offs),
-		   (des_cblock *)lanman, ks1, DES_DECRYPT);
-   des_ecb_encrypt((des_cblock *)(vp+lmpw_offs + 8),
-		   (des_cblock *)&lanman[8], ks2, DES_DECRYPT);
+   DES_ecb_encrypt((DES_cblock *)(vp+lmpw_offs),
+		   (DES_cblock *)lanman, &ks1, DES_DECRYPT);
+   DES_ecb_encrypt((DES_cblock *)(vp+lmpw_offs + 8),
+		   (DES_cblock *)&lanman[8], &ks2, DES_DECRYPT);
       
    if (gverbose) {
      hexprnt("MD4 hash     : ",(unsigned char *)md4,16);
@@ -460,7 +459,7 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
    }
 
 
-#ifdef DOCRYPT
+#ifdef DOCRYPTO
    if (*newp == '9') {   /* Set new password */
 
      if (dontchange) {
@@ -493,15 +492,15 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
      if (gverbose) hexprnt("NEW LANMAN hash : ",(unsigned char *)lanman,16);
      
      /* Encrypt the NT md4 password hash as two 8 byte blocks. */
-     des_ecb_encrypt((des_cblock *)digest,
-		     (des_cblock *)despw, ks1, DES_ENCRYPT);
-     des_ecb_encrypt((des_cblock *)(digest+8),
-		     (des_cblock *)&despw[8], ks2, DES_ENCRYPT);
+     DES_ecb_encrypt((DES_cblock *)digest,
+		     (DES_cblock *)despw, &ks1, DES_ENCRYPT);
+     DES_ecb_encrypt((DES_cblock *)(digest+8),
+		     (DES_cblock *)&despw[8], &ks2, DES_ENCRYPT);
      
-     des_ecb_encrypt((des_cblock *)lanman,
-		     (des_cblock *)newlandes, ks1, DES_ENCRYPT);
-     des_ecb_encrypt((des_cblock *)(lanman+8),
-		     (des_cblock *)&newlandes[8], ks2, DES_ENCRYPT);
+     DES_ecb_encrypt((DES_cblock *)lanman,
+		     (DES_cblock *)newlandes, &ks1, DES_ENCRYPT);
+     DES_ecb_encrypt((DES_cblock *)(lanman+8),
+		     (DES_cblock *)&newlandes[8], &ks2, DES_ENCRYPT);
      
      if (gverbose) {
        hexprnt("NEW DES crypt   : ",(unsigned char *)despw,16);
@@ -528,7 +527,7 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
 
 
    } /* new password */
-#endif /* DOCRYPT */
+#endif /* DOCRYPTO */
 
    if (pl == 1 && *newp == '1') {
      /* Setting hash lengths to zero seems to make NT think it is blank
@@ -608,8 +607,6 @@ void find_n_change(char *username)
  * See docs for more info on what's going on when syskey is installed
  */
 
-#undef LSADATA
-
 void handle_syskey(void)
 {
 
@@ -630,15 +627,6 @@ void handle_syskey(void)
     int  unknown2;             /* Usually 0? */
     char keydata[0x40];        /* Some kind of scrambled keydata? */
   };
-
-#ifdef LSADATA
-  /* SYSTEM\CurrentControlSet\Control\Lsa\Data, only on NT5?? */
-  /* Probably contains some keyinfo for syskey. Byte 0x34 seems to be mode */
-  struct lsadata {
-    char keydata[0x34];        /* Key information */
-    int  syskeymode;           /* Is this what we're looking for? */
-  };
-#endif
 
   /* void *fdata; */
   struct samkeyf *ff = NULL;
@@ -679,28 +667,12 @@ void handle_syskey(void)
     }
   }
 
-#ifdef LSADATA
-  lsad = get_val2buf(hive[H_SYS], NULL, 0, "\\ControlSet001\\Control\\Lsa\\Data\\Pattern", REG_BINARY, TPF_VK_EXACT);
-
-  if (lsad && lsad->len >= 0x38) {
-    ld = (struct lsadata *)&lsad->data;
-    ldmode = ld->syskeymode;
-  } else {
-    ldmode = -1;
-  }
-#endif
-
   printf("SYSTEM   SecureBoot            : %d -> %s\n", secboot,
 	 (secboot < 0 || secboot > 3) ? "Not Set (not installed, good!)" : syskeytypes[secboot]);
   printf("SAM      Account\\F             : %d -> %s\n", samfmode,
 	 (samfmode < 0 || samfmode > 3) ? "Not Set" : syskeytypes[samfmode]);
   printf("SECURITY PolSecretEncryptionKey: %d -> %s\n", secmode,
 	 (secmode < 0 || secmode > 3) ? "Not Set (OK if this is NT4)" : syskeytypes[secmode]);
-
-#ifdef LSADATA
-  printf("SYSTEM   LsaData               : %d -> %s\n\n", ldmode,
-	 (ldmode < 0 || ldmode > 3) ? "Not Set (strange?)" : syskeytypes[ldmode]);
-#endif
 
   if (secboot != samfmode && secboot != -1) {
     printf("WARNING: Mismatch in syskey settings in SAM and SYSTEM!\n");
@@ -753,16 +725,6 @@ void handle_syskey(void)
 	put_buf2val(hive[H_SEC], secpol, 0, "\\Policy\\PolSecretEncryptionKey\\@", REG_BINARY, TPF_VK_EXACT);
 
       }
-
-#if LSADATA
-      if (ld) { 
-
-	ld->syskeymode = 0;
-
-	put_buf2val(hive[H_SYS], lsad, 0, "\\ControlSet001\\Control\\Lsa\\Data\\Pattern", REG_BINARY, TPF_VK_EXACT);
-
-      }
-#endif
 
       /* And SYSTEM SecureBoot parameter */
 

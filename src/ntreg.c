@@ -930,8 +930,6 @@ int find_free_blk(struct hive *hdesc, int pofs, int size)
   
 }
 
-#undef FB_DEBUG
-
 /* Search pages from start to find free block
  * hdesc - hive
  * size - space requested, in bytes
@@ -987,20 +985,8 @@ int add_bin(struct hive *hdesc, int size)
 
   newbinofs = hdesc->endofs;
 
-
-#ifdef ADDBIN_DEBUG
-  printf("add_bin: request size = %d [%x], rounded to %d [%x]\n",size,size,r,r);
-  printf("add_bin: old buffer size = %d [%x]\n",hdesc->size,hdesc->size);
-  printf("add_bin: firs nonbin off = %d [%x]\n",newbinofs,newbinofs);
-  printf("add_bin: free at end     = %d [%x]\n",hdesc->size-newbinofs,hdesc->size-newbinofs);
-#endif
-
   if ( (newbinofs + r) >= hdesc->size) { /* We must allocate more buffer */
     newsize = ( (newbinofs + r) & ~(REGF_FILEDIVISOR-1) ) + REGF_FILEDIVISOR; /* File normally multiple of 0x40000 bytes */
-
-#ifdef ADDBIN_DEBUG
-    printf("add_bin: new buffer size = %d [%x]\n",newsize,newsize);
-#endif
 
     hdesc->buffer = realloc(hdesc->buffer, newsize);
     if (!hdesc->buffer) {
@@ -1029,10 +1015,6 @@ int add_bin(struct hive *hdesc, int size)
   /* Update REGF header */
   hdr = (struct regf_header *) hdesc->buffer;
   hdr->filesize = newbinofs + r - 0x1000;               /* Point header to new end of data */
-
-#ifdef ADDBIN_DEBUG
-  printf("add_bin: adjusting size field in REGF: %d [%x]\n",hdr->filesize,hdr->filesize);
-#endif
 
   /* Update state */
 
@@ -1181,11 +1163,6 @@ int free_block(struct hive *hdesc, int blk)
   size = get_int(hdesc->buffer+blk);
   if (size >= 0) {
     printf("free_block: trying to free already free block!\n");
-#ifdef DOCORE
-      printf("blk = %x\n",blk);
-      if (hdesc->state & HMODE_TRACE) debugit(hdesc->buffer,hdesc->size);
-      abort();
-#endif
     return(0);
   }
   size = -size;
@@ -1221,11 +1198,6 @@ int free_block(struct hive *hdesc, int blk)
     
     if (vofs != blk) {
       printf("free_block: ran off end of page!?!? Error in chains?\n");
-#ifdef DOCORE
-      printf("vofs = %x, pofs = %x, blk = %x\n",vofs,pofs,blk);
-      if (hdesc->state & HMODE_TRACE) debugit(hdesc->buffer,hdesc->size);
-      abort();
-#endif
       return(0);
     }
     
@@ -2147,7 +2119,7 @@ int alloc_val_data(struct hive *hdesc, int vofs, char *path, int size,int exact)
 
 
   } else { /* 4 bytes or less are inlined */
-    datablk = vkofs + (int32_t)&(vkkey->ofs_data) - (int32_t)vkkey;
+    datablk = vkofs + ((size_t)&vkkey->ofs_data - (size_t)vkkey);
     size |= 0x80000000;
   }
 
@@ -2399,8 +2371,6 @@ int del_value(struct hive *hdesc, int nkofs, char *name, int exact)
  * return: ptr to new keystruct, or NULL
  */
 
-#undef AKDEBUG
-
 struct nk_key *add_key(struct hive *hdesc, int nkofs, char *name)
 {
 
@@ -2441,10 +2411,6 @@ struct nk_key *add_key(struct hive *hdesc, int nkofs, char *name)
       ri = (struct ri_key *)(hdesc->buffer + riofs + 0x1004);
       rimax = ri->no_lis-1;
 
-#ifdef AKDEBUG
-      printf("add_key: entering 'ri' traverse, rimax = %d\n",rimax);
-#endif
-
       oldliofs = ri->hash[rislot+1].ofs_li;
       oldlfofs = ri->hash[rislot+1].ofs_li;
 
@@ -2463,17 +2429,10 @@ struct nk_key *add_key(struct hive *hdesc, int nkofs, char *name)
       oldli = (struct li_key *)(hdesc->buffer + oldliofs + 0x1004);
       oldlf = (struct lf_key *)(hdesc->buffer + oldlfofs + 0x1004);
 
-#ifdef AKDEBUG
-      printf("add_key: top of ri-loop: rislot = %d, rimax = %d\n",rislot,rimax);
-#endif
       slot = -1;
 
       if (oldli->id == 0x696c) {  /* li */
 	
-#ifdef AKDEBUG
-	printf("add_key: li slot allocate\n");
-#endif	
-
 	FREE(newli);
 	ALLOC(newli, 8 + 4*oldli->no_keys + 4, 1);
 	newli->no_keys = oldli->no_keys;
@@ -2498,9 +2457,6 @@ struct nk_key *add_key(struct hive *hdesc, int nkofs, char *name)
 	      slot = o;
 	      rimax = rislot; /* Cause end of 'ri' search, too */
 	      n++;
-#ifdef AKDEBUG
-	      printf("add_key: li-match: slot = %d\n",o);
-#endif
 	    }
 	  }
 	  newli->hash[n].ofs_nk = oldli->hash[o].ofs_nk;
@@ -2515,9 +2471,6 @@ struct nk_key *add_key(struct hive *hdesc, int nkofs, char *name)
 	ALLOC(newlf, 8 + 8*oldlf->no_keys + 8, 1);
 	newlf->no_keys = oldlf->no_keys;
 	newlf->id = oldlf->id;
-#ifdef AKDEBUG	
-	printf("add_key: new lf/lh no_keys: %d\n",newlf->no_keys);
-#endif
 	
 	/* Now copy old, checking where to insert (alphabetically) */
 	for (o = 0, n = 0; o < oldlf->no_keys; o++,n++) {
@@ -2538,9 +2491,6 @@ struct nk_key *add_key(struct hive *hdesc, int nkofs, char *name)
 	      slot = o;
 	      rimax = rislot;  /* Cause end of 'ri' search, too */
 	      n++;
-#ifdef AKDEBUG
-	      printf("add_key: lf-match: slot = %d\n",o);
-#endif
 	    }
 	  }
 	  newlf->hash[n].ofs_nk = oldlf->hash[o].ofs_nk;
@@ -2556,9 +2506,6 @@ struct nk_key *add_key(struct hive *hdesc, int nkofs, char *name)
     } while ( (rislot < rimax) && (rimax > 0));  /* 'ri' wrapper loop */
 
   } else { /* Parent was empty, make new index block */
-#ifdef AKDEBUG
-    printf("add_key: new index!\n");
-#endif
     ALLOC(newlf, 8 + 8, 1);
     newlf->no_keys = 0 ;    /* Will increment to 1 when filling in the offset later */
     /* Use ID (lf, lh or li) we fetched from root node, so we use same as rest of hive */
@@ -2617,10 +2564,6 @@ struct nk_key *add_key(struct hive *hdesc, int nkofs, char *name)
 
 
   } else {  /* lh or lf */
-
-#ifdef AKDEBUG
-    printf("add_key: lf/lh fill at slot: %d, rislot: %d\n",slot,rislot);
-#endif
     /* And put its offset into parents index list */
     newlf->hash[slot].ofs_nk = newnkofs - 0x1000;
     newlf->no_keys++;
@@ -2680,8 +2623,6 @@ struct nk_key *add_key(struct hive *hdesc, int nkofs, char *name)
  * return: 1 - err, 0 - ok
  */
 
-#undef DKDEBUG
-
 int del_key(struct hive *hdesc, int nkofs, char *name)
 {
 
@@ -2698,11 +2639,6 @@ int del_key(struct hive *hdesc, int nkofs, char *name)
   key = (struct nk_key *)(hdesc->buffer + nkofs);
 
   namlen = strlen(name);
-
-#ifdef DKDEBUG
-  printf("del_key: deleting: <%s>\n",name);
-#endif
-
 
   if (key->id != 0x6b6e) {
     printf("del_key: current ptr not nk\n");
@@ -2732,10 +2668,6 @@ int del_key(struct hive *hdesc, int nkofs, char *name)
     ri = (struct ri_key *)(hdesc->buffer + riofs + 0x1004);
     rimax = ri->no_lis-1;
     
-#ifdef DKDEBUG
-    printf("del_key: entering 'ri' traverse, rimax = %d\n",rimax);
-#endif
-    
     rislot = -1; /* Starts at slot 0 below */
     
   }
@@ -2751,15 +2683,9 @@ int del_key(struct hive *hdesc, int nkofs, char *name)
     oldli = (struct li_key *)(hdesc->buffer + oldliofs + 0x1004);
     oldlf = (struct lf_key *)(hdesc->buffer + oldlfofs + 0x1004);
     
-#ifdef DKDEBUG
-    printf("del_key: top of ri-loop: rislot = %d\n",rislot);
-#endif
     slot = -1;
     
     if (oldlf->id == 0x696c) {   /* 'li' handler */
-#ifdef DKDEBUG      
-      printf("del_key: li handler\n");
-#endif
       
       FREE(newli);
       ALLOC(newli, 8 + 4*oldli->no_keys - 4, 1);
@@ -2782,14 +2708,8 @@ int del_key(struct hive *hdesc, int nkofs, char *name)
       
     } else { /* 'lf' or 'lh' are similar */
       
-#ifdef DKDEBUG
-      printf("del_key: lf or lh handler\n");
-#endif
       FREE(newlf);
       ALLOC(newlf, 8 + 8*oldlf->no_keys - 8, 1);
-#ifdef DKDEBUG
-      printf("alloc newlf: %x\n",newlf);
-#endif
       newlf->no_keys = oldlf->no_keys - 1; no_keys = newlf->no_keys;
       newlf->id = oldlf->id;
       
@@ -2807,9 +2727,6 @@ int del_key(struct hive *hdesc, int nkofs, char *name)
 	}
 
 	if (n < newlf->no_keys) { /* Only store if not last index in old */
-#ifdef DKDEBUG
-	  printf("del_key: n = %d, o = %d\n",n,o);
-#endif
 	  newlf->hash[n].ofs_nk = oldlf->hash[o].ofs_nk;
 	  newlf->hash[n].name[0] = oldlf->hash[o].name[0];
 	  newlf->hash[n].name[1] = oldlf->hash[o].name[1];
@@ -2829,10 +2746,6 @@ int del_key(struct hive *hdesc, int nkofs, char *name)
     return(1);
   }
 
-#ifdef DKDEBUG
-  printf("del_key: key found at slot %d\n",slot);
-#endif
-
   if (delnk->no_values || delnk->no_subkeys) {
     printf("del_key: subkey %s has subkeys or values. Not deleted.\n",name);
     FREE(newlf);
@@ -2850,9 +2763,6 @@ int del_key(struct hive *hdesc, int nkofs, char *name)
      */ 
     if (delnkofs) delnk = (struct nk_key *)(delnkofs + hdesc->buffer + 0x1004);
 
-#ifdef DKDEBUG
-    printf("del_key: alloc_block for index returns: %x\n",newlfofs);
-#endif
     if (!newlfofs) {
       printf("del_key: WARNING: unable to allocate space for new key descriptor for %s! Not deleted\n",name);
       FREE(newlf);
@@ -3555,9 +3465,6 @@ char *my_fgets(char *s, char *w, int max, FILE *file, int wide)
  * Returns total lenght of line
  */
 
-
-#undef GETLINE_DEBUG
-
 int get_line(char s[], char w[], FILE *file, char **assigner, char **value, int wide)
 {
   int l,q;
@@ -3576,10 +3483,6 @@ int get_line(char s[], char w[], FILE *file, char **assigner, char **value, int 
 
     l = strlen(s);
 
-#ifdef GETLINE_DEBUG
-    printf("get_line: read line len %d : %s\n",l,s);
-#endif
-
     if (l == 0) {
       if (feof(file)) return 0;
       break;
@@ -3595,17 +3498,9 @@ int get_line(char s[], char w[], FILE *file, char **assigner, char **value, int 
 
     l = strlen(s);
 
-#ifdef GETLINE_DEBUG
-    printf("get_line: stripped line len %d : %s\n",l,s);
-#endif
-
-
     c = b;
 
     if (*b == '[') {    /* Key line starts with [ */
-#ifdef GETLINE_DEBUG
-      printf("get_line: key line..\n");
-#endif
       while (*c && (*c != ']')) c++;
       if (!*c) {
 	printf("get_line: WARNING: un-terminated key line..\n");
@@ -3624,9 +3519,6 @@ int get_line(char s[], char w[], FILE *file, char **assigner, char **value, int 
 	*c = 0;
 	*assigner = b;
 	*value = c + 1;
-#ifdef GETLINE_DEBUG
-	printf("get_line: value line\n");
-#endif
 	return(l);
       }
       c++;
@@ -3634,9 +3526,6 @@ int get_line(char s[], char w[], FILE *file, char **assigner, char **value, int 
     /* At this point we don't have a = outside quotes, so probably a value cont line */
     *assigner = NULL;
     *value = b;
-#ifdef GETLINE_DEBUG
-    printf("get_line: cont line\n");
-#endif
     return(l);
 
   } while (!feof(file));
@@ -4158,8 +4047,6 @@ int writeHive(struct hive *hdesc)
   return(0);
 }
 
-#undef LOAD_DEBUG
-
 struct hive *openHive(char *filename, int mode)
 {
 
@@ -4193,11 +4080,6 @@ struct hive *openHive(char *filename, int mode)
   } else {
     fmode = O_RDWR;
   }
-
-  /* Some non-unix platforms may need this. Thanks to Dan Schmidt */
-#ifdef O_BINARY
-  fmode |= O_BINARY;
-#endif
 
   hdesc->filedesc = open(hdesc->filename,fmode);
   if (hdesc->filedesc < 0) {
@@ -4256,10 +4138,6 @@ struct hive *openHive(char *filename, int mode)
 
    checksum = calc_regfsum(hdesc);
 
-#ifdef LOAD_DEBUG
-   printf("openhive: calculated checksum: %08x\n",checksum);
-   printf("openhive: file REGF  checksum: %08x\n",hdr->checksum);
-#endif
    if (checksum != hdr->checksum) {
      fprintf(stderr,"openHive(%s): WARNING: REGF header checksum mismatch! calc: 0x%08x != file: 0x%08x\n",filename,checksum,hdr->checksum);
    }
@@ -4300,10 +4178,6 @@ struct hive *openHive(char *filename, int mode)
 
 
    while (pofs < hdr->filesize + 0x1000) {   /* Loop through hbins until end according to regf header */
-#ifdef LOAD_DEBUG
-     int htrace = 1;
-     //     if (htrace) hexdump(hdesc->buffer,pofs,pofs+0x20,1);
-#endif
      p = (struct hbin_page *)(hdesc->buffer + pofs);
      if (p->id != 0x6E696268) {
        if (info) printf("Page at 0x%x is not 'hbin', assuming file contains garbage at end\n",pofs);
