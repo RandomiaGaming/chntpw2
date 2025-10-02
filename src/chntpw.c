@@ -9,7 +9,11 @@
 #include <sys/types.h>
 #include <inttypes.h>
 
-#define DOCRYPTO
+#include "ntreg.h"
+#include "edlib.h"
+#include "libsam.h"
+
+// #define DOCRYPTO
 
 /* Define DOCRYPTO in makefile to include cryptostuff to be able to change passwords to
  * a new one.
@@ -26,10 +30,6 @@
 #define MD4Init MD4_Init
 #define MD4Update MD4_Update
 #define MD4Final MD4_Final
-
-#include "ntreg.h"
-#include "edlib.h"
-#include "libsam.h"
 
 const char chntpw_version[] = "chntpw version 1.00 140201, (c) Petter N Hagen";
 
@@ -226,7 +226,7 @@ void interactive_remusrgrp(int rid)
 void interactive_addusrgrp(int rid)
 {
   char inp[20];
-  int grp;
+  unsigned int grp;
 
   printf("\n == ADD USER TO A GROUP\n");
 
@@ -345,8 +345,8 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
    cheap_uni2ascii(vp + comment_offset,comment,comment_len);
    cheap_uni2ascii(vp + homedir_offset,homedir,homedir_len);
    
-#if 0
    /* Reset hash-lengths to 16 if syskey has been reset */
+   /*
    if (syskeyreset && ntpw_len > 16 && !stat) {
      ntpw_len = 16;
      lmpw_len = 16;
@@ -355,7 +355,7 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
      *(vp + 0xa0) = 16;
      *(vp + 0xac) = 16;
    }
-#endif
+   */
 
    printf("================= USER EDIT ====================\n");
    printf("\nRID     : %04d [%04x]\n",rid,rid);
@@ -542,10 +542,10 @@ char *change_pw(char *buf, int rid, int vlen, int stat)
      printf("Password cleared!\n");
    }
    
-#if 0
-   hexprnt("Pw in buffer: ",(vp+ntpw_offs),16);
-   hexprnt("Lm in buffer: ",(vp+lmpw_offs),16);
-#endif
+/*
+hexprnt("Pw in buffer: ",(vp+ntpw_offs),16);
+hexprnt("Lm in buffer: ",(vp+lmpw_offs),16);
+*/
    } // Forever...
 
    return(username);
@@ -773,7 +773,7 @@ void useredit(void)
     sprintf(iwho,"0x%x",admrid);
     rid = admrid;
   } else {
-    sscanf(iwho, "%x", &rid);
+    sscanf(iwho, "%x", (unsigned int *)&rid);
     sprintf(iwho,"0x%x",rid);   
   }
   if (!rid) return;
@@ -864,11 +864,11 @@ void interactive(void)
       printf("  3 - RecoveryConsole settings\n");
       printf("  4 - Show product key (DigitalProductID)\n");
     }
-#if 0
-    if (H_SAM >= 0 && H_SYS >= 0 && H_SEC >= 0) {
-      printf("  8 - Syskey status & change\n");
-    }
-#endif
+/*
+if (H_SAM >= 0 && H_SYS >= 0 && H_SEC >= 0) {
+  printf("  8 - Syskey status & change\n");
+}
+*/
 
     printf("      - - -\n"
 	   "  9 - Registry editor, now with full write support!\n"

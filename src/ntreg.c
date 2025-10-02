@@ -1,74 +1,29 @@
 /*
- * ntreg.c - Windows (NT and up) Registry Hive access library
- *           should be able to handle most basic functions:
- *           iterate, add&delete keys and values, read stuff, change stuff etc
- *           no rename of keys or values yet..
- *           also contains some minor utility functions (string handling etc) for now
- * 
- * 2014-jan: openhive() now more compatible with build on non-unix?
- * 2013-aug: Enter buil-in buffer debugger only if in trace mode, else return error or abort()
- * 2013-may-aug: Fixed critical bug in del_value which could
- *           thrash the hive when removing value in bottom of key.
- *           And a pointer not reinitialized when buffer reallocated in some cases, fixed.
- *           Thanks to Jacky To for reporting those two.
- *           Some minor adjustments for compiler. A few more utility functions.
- * 2012-oct: Added set_val_type. some minor changes.
- * 2011-may: Seems like large values >16k or something like that is split
- *           into several blocks (db), have tried to implement that.
- *           Vista seems to accept it. Not tested on others yet.
- * 2011-may: Expansion now seems to be working, have lot of test accepted by
- *           vista and win7. But no warranties..
- * 2011-may: Found a couple of nasty bugs inn add_key(), making Vista and newer
- *           reject (remove) keys on hive load.
- *           May have been there for a long time according to reports.
- * 2011-apr: Fixed some problems with the allocator when at the end of a hbin.
- * 2011-apr: .reg file import. Ugly one, but it seems to work. Found
- *           quite a lot of bugs in other places while testing it.
- *           String handling when international characters or wide (UTF-16)
- *           is a pain, and very ugly. May not work in some cases.
- *           Will keep wide (16 bit) characters in strings when importing from
- *           .reg file that has it, like what regedit.exe generates for example.
- * 2011-apr: Added routines for hive expansion. Will add new hbin at end of file
- *           when needed. If using library, please read ugly warnings in "alloc_block()".
- * 2010-jun: Patches from Frediano Ziglio adding support for wide characters
- *           and some bugfixes. Thank you!
- * 2008-mar: Type QWORD (XP/Vista and newer) now recognized
- * 2008-mar: Most functions accepting a path now also have a parameter specifying if
- *           the search should be exact or on first match basis
- * 2008-mar: Fixed bug which skipped first indirect index table when deleting keys,
- *           usually leading to endless loop when recursive deleting.
- * 2008-mar: Export to .reg file by Leo von Klenze, expanded a bit by me.
- * 2008-mar: 64 bit compatible patch by Mike Doty, via Alon Bar-Lev
- *           http://bugs.gentoo.org/show_bug.cgi?id=185411
- * 2007-sep: Verbosity/debug messages minor changes
- * 2007-apr: LGPL license.
- * 2004-aug: Deep indirect index support. NT351 support. Recursive delete.
- *           Debugged a lot in allocation routines. Still no expansion.
- * 2004-jan: Verbosity updates
- * 2003-jan: Allocation of new data, supports adding/deleting keys & stuff.
- *           Missing is expanding the file.
- * 2003-jan: Seems there may be garbage pages at end of file, not zero pages
- *           now stops enumerating at first non 'hbin' page.
- * 
- * NOTE: The API is not frozen. It can and will change every release.
- *
- *****
- *
- * NTREG - Window registry file reader / writer library
- * Copyright (c) 1997-2014 Petter Nordahl-Hagen.
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation;
- * version 2.1 of the License.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- * See file LGPL.txt for the full license.
- * 
- */ 
+NTREG - Window registry file reader / writer library
+
+Windows (NT and up) Registry Hive access library.
+It should be able to handle most basic functions including
+iterate, add and delete keys and values, read stuff, change stuff.
+No rename of keys or values yet. Also contains some
+minor utility functions (string handling etc) for now.
+*/
+
+/*
+Copyright (c) 1997-2014 Petter Nordahl-Hagen.
+
+This library is free software; you can redistribute it and/or
+modify it under the terms of the GNU Lesser General Public
+License as published by the Free Software Foundation;
+version 2.1 of the License.
+
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+Lesser General Public License for more details.
+See file LICENSE.md for the full license.
+*/
+
+#include "ntreg.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -82,13 +37,9 @@
 #include <inttypes.h>
 #include <stdarg.h>
 
-#include "ntreg.h"
-
-/* Set to abort() and debug on more critical errors */
-#define DOCORE 1
-
-#define ZEROFILL      1  /* Fill blocks with zeroes when allocating and deallocating */
-#define ZEROFILLONLOAD  0  /* Fill blocks marked as unused/deallocated with zeroes on load. FOR DEBUG */
+#define DOCORE 1 /* Set to abort() and debug on more critical errors */
+#define ZEROFILL 1 /* Fill blocks with zeroes when allocating and deallocating */
+#define ZEROFILLONLOAD 0 /* Fill blocks marked as unused/deallocated with zeroes on load. FOR DEBUG */
 
 const char ntreg_version[] = "ntreg lib routines, v0.95 140201, (c) Petter N Hagen";
 
@@ -99,18 +50,15 @@ const char *val_types[REG_MAX+1] = {
   "REG_QWORD",                                                            /* 11     */
 };
 
-static char * string_prog2regw(void *string, int len, int* out_len);
-
 /* Utility routines */
 
 /* toupper() table for registry hashing functions, so we don't have to
  * dependent upon external locale lib files
  */
 
-static const unsigned char reg_touppertable[] = {
+const unsigned char reg_touppertable[] = {
 
   /* ISO 8859-1 is probably not the one.. */
-
         0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, /* 0x00-0x07 */
         0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, /* 0x08-0x0f */
         0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, /* 0x10-0x17 */
@@ -127,7 +75,6 @@ static const unsigned char reg_touppertable[] = {
         0x48, 0x49, 0x4a, 0x4b, 0x4c, 0x4d, 0x4e, 0x4f, /* 0x68-0x6f */
         0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, /* 0x70-0x77 */
         0x58, 0x59, 0x5a, 0x7b, 0x7c, 0x7d, 0x7e, 0x7f, /* 0x78-0x7f */
-
         0x80, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, /* 0x80-0x87 */
         0x88, 0x89, 0x8a, 0x8b, 0x8c, 0x8d, 0x8e, 0x8f, /* 0x88-0x8f */
         0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, /* 0x90-0x97 */
@@ -144,7 +91,6 @@ static const unsigned char reg_touppertable[] = {
         0xc8, 0xc9, 0xca, 0xcb, 0xcc, 0xcd, 0xce, 0xcf, /* 0xe8-0xef */
         0xd0, 0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xf7, /* 0xf0-0xf7 */
         0xd8, 0xd9, 0xda, 0xdb, 0xdc, 0xdd, 0xde, 0x00, /* 0xf8-0xff */
-
 };
 
 
@@ -757,12 +703,12 @@ int parse_block(struct hive *hdesc, int vofs,int verbose)
 
   //  if (vofs > 0xaef000) verbose = 1;
 
-#if 0
-  if (verbose || seglen == 0) {
-    printf("** Block at offset %0x\n",vofs);
-    printf("seglen: %d, %u, 0x%0x\n",seglen,seglen,seglen);
-  }
-#endif
+/*
+if (verbose || seglen == 0) {
+  printf("** Block at offset %0x\n",vofs);
+  printf("seglen: %d, %u, 0x%0x\n",seglen,seglen,seglen);
+}
+*/
   if (seglen == 0) {
     printf("parse_block: FATAL! Zero data block size! (not registry or corrupt file?)\n");
     if (verbose) debugit(hdesc->buffer,hdesc->size);
@@ -781,9 +727,9 @@ int parse_block(struct hive *hdesc, int vofs,int verbose)
     hdesc->unusetot += seglen;
     hdesc->unuseblk++;
     /* Useful to zero blocks we think are empty when debugging.. */
-#if ZEROFILLONLOAD
-    bzero(hdesc->buffer+vofs+4,seglen-4);
-#endif
+/*
+bzero(hdesc->buffer+vofs+4,seglen-4);
+*/
 
     if (verbose) {
       printf("FREE BLOCK @ %06x to %06x : %d, 0x%0x\n",vofs,vofs+seglen,seglen,seglen); 
@@ -880,7 +826,7 @@ int find_free_blk(struct hive *hdesc, int pofs, int size)
 
     seglen = get_int(hdesc->buffer+vofs);  
 
-#if FB_DEBUG
+#ifdef FB_DEBUG
     if (vofs > 0x400000) {
     printf("** Block at offset %0x\n",vofs);
     printf("seglen: %d, %u, 0x%0x\n",seglen,seglen,seglen);
@@ -901,17 +847,17 @@ int find_free_blk(struct hive *hdesc, int pofs, int size)
     
     if (seglen < 0) {
       seglen = -seglen;
-#if FB_DEBUG
+#ifdef FB_DEBUG
       if (vofs >0x400000) printf("USED BLOCK: %d, 0x%0x\n",seglen,seglen);
 #endif
 	/*      hexdump(hdesc->buffer,vofs,vofs+seglen+4,1); */
     } else {
-#if FB_DEBUG
+#ifdef FB_DEBUG
 	if (vofs >0x400000) printf("FREE BLOCK!\n"); 
 #endif
 	/*      hexdump(hdesc->buffer,vofs,vofs+seglen+4,1); */
 	if (seglen >= size) {
-#if FB_DEBUG
+#ifdef FB_DEBUG
 	  if (vofs >0x400000) printf("find_free_blk: found size %d block at 0x%x\n",seglen,vofs);
 #endif
 #if 0
@@ -1081,7 +1027,6 @@ int alloc_block(struct hive *hdesc, int ofs, int size)
       size += 4;
     }
 
- #if 1
     if (trailsize & 7) { /* Trail must be 8 aligned */
       trailsize -= (8 - (trailsize & 7));
       size += (8 - (trailsize & 7));
@@ -1090,12 +1035,11 @@ int alloc_block(struct hive *hdesc, int ofs, int size)
       trailsize = 0;
       size += 4;
     }
-#endif
 
-#if 0
-    printf("trail after comp: %x\n",trailsize);
-    printf("size  after comp: %x\n",size);
-#endif
+/*
+printf("trail after comp: %x\n",trailsize);
+printf("size  after comp: %x\n",size);
+*/
 
     /* Now change pointers on this to reflect new size */
     *(int *)((hdesc->buffer)+blk) = -(size);
@@ -1120,7 +1064,7 @@ int alloc_block(struct hive *hdesc, int ofs, int size)
 
     }  
     /* Clear the block data, makes it easier to debug */
-#if ZEROFILL
+#ifdef ZEROFILL
     bzero( (void *)(hdesc->buffer+blk+4), size-4);
 #endif
 
@@ -1228,7 +1172,7 @@ int free_block(struct hive *hdesc, int blk)
   }
 
   /* Now free the block (possibly with ajusted size as above) */
-#if ZEROFILL
+#ifdef ZEROFILL
    bzero( (void *)(hdesc->buffer+blk), size);
 #endif
 
@@ -1248,7 +1192,7 @@ int free_block(struct hive *hdesc, int blk)
     hdesc->unusetot += prevsz;
     prevsz += size;
     /* And swallow current.. */
-#if ZEROFILL
+#ifdef ZEROFILL
       bzero( (void *)(hdesc->buffer+prev), prevsz);
 #endif
     *(int *)((hdesc->buffer)+prev) = (int)prevsz;
@@ -1298,7 +1242,7 @@ int ex_next_n(struct hive *hdesc, int nkofs, int *count, int *countri, struct ex
   rikey = (struct ri_key *)(hdesc->buffer + key->ofs_lf + 0x1004);
 
   if (rikey->id == 0x6972) {   /* Is it extended 'ri'-block? */
-#if EXNDEBUG
+#ifdef EXNDEBUG
     printf("%d , %d\n",*countri,*count);
 #endif
     if (*countri < 0 || *countri >= rikey->no_lis) { /* End of ri's? */
@@ -1314,7 +1258,7 @@ int ex_next_n(struct hive *hdesc, int nkofs, int *count, int *countri, struct ex
     }
 
     /* Check if current li/lf is exhausted */
-#if EXNDEBUG
+#ifdef EXNDEBUG
     printf("likey->no_keys = %d\n",likey->no_keys);
 #endif
     if (*count >= likey->no_keys-1) { /* Last legal entry in li list? */
@@ -3115,8 +3059,7 @@ string_regw2prog(void *string, int len)
 }
 
 #if 0        // Not used at the moment
-static char *
-string_rega2prog(void *string, int len)
+char * string_rega2prog(void *string, int len)
 {
     int i, k;
     char *cstring;
@@ -3170,8 +3113,7 @@ string_prog2rega(char *string, int len)
 #endif  // Not used
 
 
-static char *
-string_prog2regw(void *string, int len, int *out_len)
+char * string_prog2regw(void *string, int len, int *out_len)
 {
     unsigned char *regw = (unsigned char*) malloc(len*2+2);
     unsigned char *out = regw;
@@ -3198,8 +3140,7 @@ string_prog2regw(void *string, int len, int *out_len)
     return (char *) regw;
 }
 
-static char *
-quote_string(const char *s)
+char* quote_string(const char *s)
 {
 	int len = strlen(s);
 	const char *p;
@@ -3219,8 +3160,7 @@ quote_string(const char *s)
 	return out;
 }
 
-static void
-export_bin(int type, char *value, int len, int col, FILE* file)
+void export_bin(int type, char *value, int len, int col, FILE* file)
 {
   int byte;
 

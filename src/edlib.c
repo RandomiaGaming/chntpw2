@@ -1,46 +1,26 @@
 /*
- * edlib.c - Registry edit interactive fuctions.
- * 
- * Point of this is so that interactive registry editor
- * can be accessed from several other programs
- * 
- * 2013-aug: Some minor bugfixes and adjustments
- *           Thanks to David Collett for catching and fixing bug in REG_MULTI_SZ editing.
- * 2010-jun: New function from  Aleksander Wojdyga: dpi, decode product ID
- *           Mostly used on \Microsoft\Windows NT\CurrentVersion\DigitalProductId
- *           Now as command in registry editor, but may be moved to chnpw menu later.
- * 2010-apr: Lots of bugfix and other patches from
- *           Frediano Ziglio <freddy77@gmail.com>
- *           His short patch comments:
- *           remove leak
- *           fix default value, bin and quote
- *           support wide char in key
- *           support wide character into value names
- *           fix export for string with embedded end lines
- *           remove some warnings
- *           compute checksum writing
- *
- * 2008-mar: First version. Moved from chntpw.c
- * See HISTORY.txt for more detailed info on history.
- *
- *****
- *
- * Copyright (c) 1997-2014 Petter Nordahl-Hagen.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * See file GPL.txt for the full license.
- * 
- *****
- */
+EDLIB - Registry edit interactive fuctions.
 
+Point of this is so that interactive registry editor
+can be accessed from several other programs.
+*/
+
+/*
+Copyright (c) 1997-2014 Petter Nordahl-Hagen.
+
+This library is free software; you can redistribute it and/or
+modify it under the terms of the GNU Lesser General Public
+License as published by the Free Software Foundation;
+version 2.1 of the License.
+
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+Lesser General Public License for more details.
+See file LICENSE.md for the full license.
+*/
+
+#include "edlib.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -56,11 +36,6 @@ const char edlib_version[] = "edlib version 0.1 140201, (c) Petter N Hagen";
 #define ADDBIN_DEBUG 0     /* Reg expansion debug hooks */
 
 extern char *val_types[REG_MAX+1];
-
-struct cmds {
-  char cmd_str[12];
-  int  cmd_num;
-};
 
 #define MCMD_CD 1
 #define MCMD_LS 2
@@ -96,11 +71,11 @@ struct cmds maincmds[] = {
  { "debug", MCMD_DEBUG } ,
  { "hive", MCMD_HIVE } ,
  { "ed", MCMD_EDIT } ,
-#if ALLOC_DEBUG
+#ifdef ALLOC_DEBUG
  { "alloc", MCMD_ALLOC } ,
  { "free", MCMD_FREE } ,
 #endif
-#if ADDBIN_DEBUG
+#ifdef ADDBIN_DEBUG
  { "addbin", MCMD_ADDBIN },
 #endif
  { "nv", MCMD_ADDV } ,
@@ -205,14 +180,14 @@ void cat_vk(struct hive *hdesc, int nkofs, char *path, int dohex)
     return;
   }
 
-#if 0
-  data = (void *)get_val_data(hdesc, nkofs, path, 0, TPF_VK);
-  if (!data) {
-    printf("cat_vk: Value <%s> references NULL-pointer (bad boy!)\n",path);
-    abort();
-    return;
-  }
-#endif
+/*
+data = (void *)get_val_data(hdesc, nkofs, path, 0, TPF_VK);
+if (!data) {
+  printf("cat_vk: Value <%s> references NULL-pointer (bad boy!)\n",path);
+  abort();
+  return;
+}
+*/
 
   kv = get_val2buf(hdesc, NULL, nkofs, path, 0, TPF_VK);
 
@@ -469,7 +444,7 @@ void regedit_interactive(struct hive *hive[], int no_hives)
   int usehive = 0;
   struct keyval *kv;
 
-#if ALLOC_DEBUG
+#ifdef ALLOC_DEBUG
   int pagestart;
   int freetest;
 #endif
@@ -485,7 +460,7 @@ void regedit_interactive(struct hive *hive[], int no_hives)
     *path = 0;
     get_abs_path(hdesc,cdofs+4, path, 50);
 
-#if ALLOC_DEBUG
+#ifdef ALLOC_DEBUG
     pagestart = find_page_start(hdesc,cdofs);
     printf("find_page_start: 0x%x\n",pagestart);
     freetest = find_free_blk(hdesc,pagestart,10);
@@ -556,7 +531,7 @@ void regedit_interactive(struct hive *hive[], int no_hives)
 	}
         add_value(hdesc, cdofs+4, bp, nh);
 	break;
-#if ALLOC_DEBUG
+#ifdef ALLOC_DEBUG
       case MCMD_FREE :
 	bp++;
 	skipspace(&bp);
@@ -570,7 +545,7 @@ void regedit_interactive(struct hive *hive[], int no_hives)
         alloc_block(hdesc, cdofs+4, nh);
 	break;
 #endif
-#if ADDBIN_DEBUG
+#ifdef ADDBIN_DEBUG
       case MCMD_ADDBIN :
 	bp++;
 	skipspace(&bp);

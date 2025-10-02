@@ -1,43 +1,33 @@
 /*
- * libsam.c - SAM database functions, user and group editing
- *
- * Functions to edit SAM database, like adding and removing
- * users to groups, list users and groups
- * list user data and reset passwords
- * low level SID handling functions
- 
- *
- * 2013-aug: Cleaned up a bit for release, still some debug/strange things left
- * 2013-aug: actually having functions doing listings in library is not good, bu
- *           have to do with that for now.
- * 2013-apr-may: Functions for password reset, more group stuff etc
- * 2012-oct: Split off from functions in chntpw.c
- * 2012-jun-oct: Made routines for group handling (add/remove user from group etc)
- *
- * See HISTORY.txt for more detailed info on history.
- *
- *****
- *
- * Copyright (c) 1997-2013 Petter Nordahl-Hagen.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * See file GPL.txt for the full license.
- * 
- *****
- *
- * Some information and ideas taken from pwdump by Jeremy Allison.
- * More info from NTCrack by Jonathan Wilkins.
- * 
- */ 
+LIBSAM - SAM database functions, user and group editing
 
+Functions to edit SAM database, like adding and removing
+users to groups, list users and groups
+list user data and reset passwords
+low level SID handling functions.
+*/
+
+/*
+Some information and ideas taken from pwdump by Jeremy Allison.
+More info from NTCrack by Jonathan Wilkins.
+*/ 
+
+/*
+Copyright (c) 1997-2014 Petter Nordahl-Hagen.
+
+This library is free software; you can redistribute it and/or
+modify it under the terms of the GNU Lesser General Public
+License as published by the Free Software Foundation;
+version 2.1 of the License.
+
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+Lesser General Public License for more details.
+See file LICENSE.md for the full license.
+*/
+
+#include "libsam.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -45,7 +35,6 @@
 #include <string.h>
 
 #include "ntreg.h"
-#include "libsam.h"
 
 extern int gverbose;  /* Ehm.. must get rid of this some day */
 
@@ -689,12 +678,12 @@ int sam_put_user_grpids(struct hive *hdesc, int rid, struct keyval *val)
 
   if (!val) return(0);
 
-#if 0
-  if (!val->len) {
-    printf("sam_put_user_grpids: zero list len\n");
-    //    return(0);
-  }
-#endif
+/*
+if (!val->len) {
+  printf("sam_put_user_grpids: zero list len\n");
+  //    return(0);
+}
+*/
 
   v = (struct keyvala *)val;
 
@@ -929,29 +918,26 @@ int sam_add_user_to_grp(struct hive *hdesc, int rid, int grp)
 
   if (gverbose) printf("usrgrplist-len = %d\n", usrgrplist->len);
 
-
-#if 0   /* If list should be sorted, but seems windows does not do that? */
-
-  /* Copy over users group list, adding in where needed */
-
+/*
+// If list should be sorted, but seems windows does not do that?
+// Copy over users group list, adding in where needed
   hit = 0;
   for (o = 0, n = 0; o < ugcnt; o++, n++) { 
     printf(":: %d %d : %x\n",o,n,og[o]);
-    if (og[o] == grp) {     /* Was already in there, so just don't increase size.. */
+    if (og[o] == grp) {     // Was already in there, so just don't increase size..
       newusrgrplist->len = usrgrplist->len;
       hit = 1;
     }
     if (og[o] > grp && !hit) {
-      ng[n++] = grp;     /* Next is higher, so insert out rid */
+      ng[n++] = grp;     // Next is higher, so insert out rid
       hit = 1;
       printf("  -- insert\n");
     }
     ng[n] = og[o];
   }
   printf("n = %d\n",n);
-  if (!hit) ng[n] = grp;    /* Insert at end if we run down */
-
-#endif
+  if (!hit) ng[n] = grp;    // Insert at end if we run down
+*/
 
   /* Copy over users group list, checking if already there */
 
