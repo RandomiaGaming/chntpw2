@@ -13,7 +13,7 @@ BINDIR = ./bin
 OBJDIR = ./obj
 MUSLDIR = ./musl
 
-all: $(BINDIR)/chntpw
+all: $(BINDIR)/chntpw2
 
 # This build target creates the ./bin and ./obj folders if they are missing.
 $(BINDIR) $(OBJDIR):
@@ -23,8 +23,8 @@ $(BINDIR) $(OBJDIR):
 $(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR) $(MUSLDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Build chntpw from all of the .o files
-$(BINDIR)/chntpw: $(OBJDIR)/chntpw.o $(OBJDIR)/ntreg.o $(OBJDIR)/edlib.o $(OBJDIR)/libsam.o | $(BINDIR) $(MUSLDIR)
+# Build chntpw2 from all of the .o files
+$(BINDIR)/chntpw2: $(OBJDIR)/chntpw.o $(OBJDIR)/ntreg.o $(OBJDIR)/edlib.o $(OBJDIR)/libsam.o | $(BINDIR) $(MUSLDIR)
 	$(CC) $(CFLAGS) -o $@ $^
 
 $(MUSLDIR):
@@ -39,6 +39,6 @@ clean:
 	rm -rf $(OBJDIR)
 	rm -rf $(BINDIR)
 
-clean_all:
+cleanall:
 	rm -rf $(MUSLDIR)
 	@$(MAKE) clean --no-print-directory
